@@ -24,7 +24,19 @@ inputs:
     required: false
   WITH_STARED:
     description: "If with stared repos"
-    default: true
+    default: ""
+    required: false
+  WITH_REPOS:
+    description: "If with created repos"
+    default: ""
+    required: false
+  PR_NUM:
+    description: "The number of pr to be shown"
+    default: 3
+    required: false
+  SHOW_ALL_PR:
+    description: "If show all pr"
+    default: ""
     required: false
 
 runs:
@@ -41,8 +53,14 @@ runs:
     - ${{ inputs.TELEGRAM_CHAT_ID }}
     - "-tgtoken"
     - ${{ inputs.TELEGRAM_TOKEN }}
-    - "-withstared"
-    - ${{ inputs.WITH_STARED }}
+#    - "-withstared"
+#    - ${{ inputs.WITH_STARED }}
+#    - "-withRepos"
+#    - ${{ inputs.WITH_REPOS }}
+    - "-prNumberShow"
+    - ${{ inputs.PR_NUM }}
+    - "-showallpr"
+    - ${{ inputs.SHOW_ALL_PR }}
 
 branding:
   icon: github

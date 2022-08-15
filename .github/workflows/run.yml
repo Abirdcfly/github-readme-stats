@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
 
 env:
-  GITHUB_NAME: yihong0618
-  GITHUB_EMAIL: zouzou0208@gmail.com
-  STARED_NUMBER: 10
+  GITHUB_NAME: Abirdcfly
+  GITHUB_EMAIL: fp544037857@gmail.com
+  WITH_REPOS: false
+  WITH_STARED: false
 
 jobs:
   build:
@@ -16,7 +17,3 @@ jobs:
       - uses: actions/checkout@v2
       - name: My GitHub Status
         uses: ./
-        with:
-          WITH_STARED: false
-          TELEGRAM_TOKEN: ${{ secrets.TELE_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELE_CHAT_ID }}

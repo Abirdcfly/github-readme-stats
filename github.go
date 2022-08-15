@@ -27,6 +27,8 @@ var (
 	reposNumber    int
 	withStared     bool
 	showAllPR      bool
+	withRepos      bool
+	prNumberShow   int
 )
 
 var baseURL = "https://github.com/"
@@ -40,8 +42,10 @@ func init() {
 	flag.IntVar(&reposNumber, "repos", 0, "number of personal repos to show")
 	flag.StringVar(&telegramToken, "tgtoken", "", "token from telegram")
 	flag.StringVar(&githubUserName, "username", "", "github user name")
-	flag.BoolVar(&withStared, "withstared", true, "if with stared repos")
+	//flag.BoolVar(&withStared, "withstared", false, "if with stared repos")
 	flag.BoolVar(&showAllPR, "showallpr", true, "if you want to show all prs included closed")
+	//flag.BoolVar(&withRepos, "withRepos", false, "if with created repos")
+	flag.IntVar(&prNumberShow, "prNumberShow", 3, "pr >= prNumberShow, will show repos, others will folding")
 }
 
 type myRepoInfo struct {
@@ -50,7 +54,7 @@ type myRepoInfo struct {
 	HTMLURL  string
 	create   string
 	update   string
-	lauguage string
+	language string
 }
 
 func (r *myRepoInfo) mdName() string {
@@ -61,12 +65,16 @@ type myPrInfo struct {
 	name      string
 	repoURL   string
 	firstDate string
-	lasteDate string
+	lastDate  string
 	prCount   int
 }
 
 func (p *myPrInfo) mdName() string {
-	return "[" + p.name + "]" + "(" + p.repoLink() + ")"
+	name := p.name
+	if _, after, ok := strings.Cut(p.repoLink(), baseURL); ok && !strings.HasPrefix(after, githubUserName) {
+		name = after
+	}
+	return "[" + name + "]" + "(" + p.repoLink() + ")"
 }
 
 func (p *myPrInfo) repoLink() string {
@@ -118,16 +126,16 @@ func makeCreatedRepos(repos []*github.Repository) ([]myRepoInfo, int, int) {
 		if !*repo.Fork {
 			create := (*repo.CreatedAt).String()[:10]
 			update := (*repo.UpdatedAt).String()[:10]
-			lauguage := "md"
+			language := "md"
 			if repo.Language != nil {
-				lauguage = *repo.Language
+				language = *repo.Language
 			}
 			myRepos = append(myRepos, myRepoInfo{
 				star:     *repo.StargazersCount,
 				name:     *repo.Name,
 				create:   create,
 				update:   update,
-				lauguage: lauguage,
+				language: language,
 				HTMLURL:  *repo.HTMLURL,
 			})
 			totalCount = totalCount + *repo.StargazersCount
@@ -179,7 +187,7 @@ func makePrRepos(issues []*github.Issue) ([]myPrInfo, int) {
 			prMap[repoName] = make(map[string]interface{})
 			prMap[repoName]["prCount"] = 1
 			prMap[repoName]["firstDate"] = (*issue.CreatedAt).String()[:10]
-			prMap[repoName]["lasteDate"] = (*issue.CreatedAt).String()[:10]
+			prMap[repoName]["lastDate"] = (*issue.CreatedAt).String()[:10]
 			prMap[repoName]["repoURL"] = *issue.RepositoryURL
 			prMap[repoName]["firstHTML"] = *issue.HTMLURL
 			prMap[repoName]["lastHTML"] = *issue.HTMLURL
@@ -189,8 +197,8 @@ func makePrRepos(issues []*github.Issue) ([]myPrInfo, int) {
 				prMap[repoName]["firstDate"] = (*issue.CreatedAt).String()[:10]
 				prMap[repoName]["firstHTML"] = *issue.HTMLURL
 			}
-			if prMap[repoName]["lasteDate"].(string) < (*issue.CreatedAt).String()[:10] {
-				prMap[repoName]["lasteDate"] = (*issue.CreatedAt).String()[:10]
+			if prMap[repoName]["lastDate"].(string) < (*issue.CreatedAt).String()[:10] {
+				prMap[repoName]["lastDate"] = (*issue.CreatedAt).String()[:10]
 				prMap[repoName]["lastHTML"] = *issue.HTMLURL
 			}
 		}
@@ -202,7 +210,7 @@ func makePrRepos(issues []*github.Issue) ([]myPrInfo, int) {
 			name:      k,
 			repoURL:   v["repoURL"].(string),
 			firstDate: "[" + v["firstDate"].(string) + "]" + "(" + v["firstHTML"].(string) + ")", // markdown format -> []()
-			lasteDate: "[" + v["lasteDate"].(string) + "]" + "(" + v["lastHTML"].(string) + ")",  // markdown format -> []()
+			lastDate:  "[" + v["lastDate"].(string) + "]" + "(" + v["lastHTML"].(string) + ")",   // markdown format -> []()
 			prCount:   v["prCount"].(int),
 		})
 	}
@@ -248,7 +256,7 @@ func makeStaredRepos(stars []*github.StarredRepository) []myStaredInfo {
 				name:     *repo.Name,
 				create:   (*repo.CreatedAt).String()[:10],
 				update:   (*repo.UpdatedAt).String()[:10],
-				lauguage: lauguage,
+				language: lauguage,
 				HTMLURL:  *repo.HTMLURL,
 			},
 		})
@@ -300,7 +308,7 @@ func makeCreatedString(repos []myRepoInfo, total int, reposNumber int) string {
 	}
 	starsData := [][]string{}
 	for i, repo := range repos {
-		starsData = append(starsData, []string{strconv.Itoa(i + 1), repo.mdName(), repo.create, repo.update, repo.lauguage, strconv.Itoa(repo.star)})
+		starsData = append(starsData, []string{strconv.Itoa(i + 1), repo.mdName(), repo.create, repo.update, repo.language, strconv.Itoa(repo.star)})
 	}
 	starsData = append(starsData, []string{"sum", "", "", "", "", strconv.Itoa(total)})
 	myStarsString := makeMdTable(starsData, []string{"ID", "Repo", "Start", "Update", "Lauguage", "Stars"})
@@ -310,11 +318,26 @@ func makeCreatedString(repos []myRepoInfo, total int, reposNumber int) string {
 func makeContributedString(myPRs []myPrInfo, total int) string {
 	prsData := [][]string{}
 	for i, pr := range myPRs {
-		prsData = append(prsData, []string{strconv.Itoa(i + 1), pr.mdName(), pr.firstDate, pr.lasteDate, fmt.Sprintf("[%d](%s)", pr.prCount, getAllPrLinks(pr))})
+		if pr.prCount < prNumberShow {
+			continue
+		}
+		prsData = append(prsData, []string{strconv.Itoa(i + 1), pr.mdName(), pr.firstDate, pr.lastDate, fmt.Sprintf("[%d](%s)", pr.prCount, getAllPrLinks(pr))})
 	}
-	prsData = append(prsData, []string{"sum", "", "", "", strconv.Itoa(total)})
-	myPrString := makeMdTable(prsData, []string{"ID", "Repo", "firstDate", "lasteDate", "prCount"})
-	return myContributedTitle + myPrString + "\n"
+	prsData = append(prsData, []string{"( total ) sum", "", "", "", strconv.Itoa(total)})
+	myPrString := makeMdTable(prsData, []string{"ID", "Repo", "firstDate", "lastDate", "prCount"})
+
+	prsDataHide := [][]string{}
+	totalHide := 0
+	for i, pr := range myPRs {
+		if pr.prCount >= prNumberShow {
+			continue
+		}
+		prsDataHide = append(prsDataHide, []string{strconv.Itoa(i + 1), pr.mdName(), pr.firstDate, pr.lastDate, fmt.Sprintf("[%d](%s)", pr.prCount, getAllPrLinks(pr))})
+		totalHide += pr.prCount
+	}
+	prsDataHide = append(prsDataHide, []string{fmt.Sprintf("( pr<%d ) sum", prNumberShow), "", "", "", strconv.Itoa(totalHide)})
+	myPrHideString := makeMdTable(prsDataHide, []string{"ID", "Repo", "firstDate", "lastDate", "prCount"})
+	return myContributedTitle + fmt.Sprintf("\n\n### pr >= %d\n\n", prNumberShow) + myPrString + "\n" + fmt.Sprintf("\n\n### pr < %d\n\n", prNumberShow) + "\n<details>\n\n" + myPrHideString + "\n</details>\n\n"
 }
 
 func makeStaredString(myStars []myStaredInfo, starNumber int) string {
@@ -326,7 +349,7 @@ func makeStaredString(myStars []myStaredInfo, starNumber int) string {
 	}
 	for i, star := range myStars[:starNumber] {
 		repo := star.myRepoInfo
-		starsData = append(starsData, []string{strconv.Itoa(i + 1), repo.mdName(), star.staredDate, repo.lauguage, repo.update})
+		starsData = append(starsData, []string{strconv.Itoa(i + 1), repo.mdName(), star.staredDate, repo.language, repo.update})
 	}
 	myStaredString := makeMdTable(starsData, []string{"ID", "Repo", "staredDate", "Lauguage", "LatestUpdate"})
 	return myStaredTitle + myStaredString + "\n"
@@ -336,11 +359,16 @@ func main() {
 	flag.Parse()
 	client := github.NewClient(nil)
 	repos := fetchAllCreatedRepos(githubUserName, client)
-	myRepos, totalStarsCount, longest := makeCreatedRepos(repos)
-	// change sort logic here
-	sort.Slice(myRepos[:], func(i, j int) bool {
-		return myRepos[j].star < myRepos[i].star
-	})
+	var myRepos []myRepoInfo
+	var totalStarsCount int
+	var longest int
+	if withRepos {
+		myRepos, totalStarsCount, longest = makeCreatedRepos(repos)
+		// change sort logic here
+		sort.Slice(myRepos[:], func(i, j int) bool {
+			return myRepos[j].star < myRepos[i].star
+		})
+	}
 
 	issues := fetchAllPrIssues(githubUserName, client)
 	myPRs, totalPrCount := makePrRepos(issues)
@@ -359,8 +387,10 @@ func main() {
 		totalMessage := genTgMessage(myRepos, totalStarsCount, longest)
 		send2Telegram(telegramToken, telegramID, totalMessage)
 	}
-
-	myCreatedString := makeCreatedString(myRepos, totalStarsCount, reposNumber)
+	myCreatedString := ""
+	if withRepos {
+		myCreatedString = makeCreatedString(myRepos, totalStarsCount, reposNumber)
+	}
 	myPrString := makeContributedString(myPRs, totalPrCount)
 
 	readMeFile := path.Join(os.Getenv("GITHUB_WORKSPACE"), "README.md")
@@ -369,10 +399,7 @@ func main() {
 		panic(err)
 	}
 	re := regexp.MustCompile(`(?s)(<!--START_SECTION:my_github-->)(.*)(<!--END_SECTION:my_github-->)`)
-	newContentString := myCreatedString + myPrString
-	if withStared {
-		newContentString = newContentString + myStaredString
-	}
+	newContentString := myCreatedString + myPrString + myStaredString
 	newContent := []byte(re.ReplaceAllString(string(readMeContent), `$1`+"\n"+newContentString+`$3`))
 	err = ioutil.WriteFile(readMeFile, newContent, 0644)
 	if err != nil {
