@@ -32,7 +32,7 @@ inputs:
     required: false
   PR_NUM:
     description: "The number of pr to be shown"
-    default: 3
+    default: 5
     required: false
   SHOW_ALL_PR:
     description: "If show all pr"

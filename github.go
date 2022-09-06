@@ -45,7 +45,7 @@ func init() {
 	//flag.BoolVar(&withStared, "withstared", false, "if with stared repos")
 	flag.BoolVar(&showAllPR, "showallpr", true, "if you want to show all prs included closed")
 	//flag.BoolVar(&withRepos, "withRepos", false, "if with created repos")
-	flag.IntVar(&prNumberShow, "prNumberShow", 3, "pr >= prNumberShow, will show repos, others will folding")
+	flag.IntVar(&prNumberShow, "prNumberShow", 5, "pr >= prNumberShow, will show repos, others will folding")
 }
 
 type myRepoInfo struct {
